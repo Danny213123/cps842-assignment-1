@@ -161,7 +161,7 @@ def grab_terms_from_all_documents(Documents: List[Document]) -> None | List[str]
     global index
     index = {}
 
-    with open(f"docs_terms_debug.txt", "w") as f:
+    with open(f"debug/docs_terms_debug.txt", "w") as f:
         for doc in Documents:
             doc_terms = grab_terms(doc)
 
