@@ -7,11 +7,15 @@ import nltk
 from nltk.tokenize import word_tokenize
 
 from document import Document
+from term import Term
 
 nltk.download("punkt_tab")
 
 global index
 index: dict[str, int]
+
+global terms_dict
+terms_dict: dict[str, Term] = {}
 
 
 def read_documents(file_path: Path) -> List[Document]:
@@ -140,11 +144,32 @@ def write_index(file_path: Path, index: dict[str, int]) -> None:
             f.write(f"{term}: {count}\n")
 
 
+def write_postings_list(file_path: Path, term: str, postings_list: List[int]) -> None:
+
+    # make sure directory exists
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(f"Postings list for term '{term}':\n")
+        for doc_id in postings_list:
+            f.write(f"{doc_id}\n")
+
+
 def tokenize(text: str) -> List[str]:
     return word_tokenize(text)
 
 
 def normalize(text: str) -> str:
+    # Remove punctuation
+    text = "".join(char for char in text if char.isalnum() or char.isspace())
+
+    # only keep non-numeric characters
+    text = "".join(char for char in text if not char.isdigit())
+
+    # check for empty string
+    if not text.strip():
+        return ""
+
     # Lowercase and strip whitespace
     return text.strip().lower()
 
@@ -154,14 +179,20 @@ def grab_terms(doc: Document) -> dict[str, List[str]]:
     terms = []
     for term in tokenize(doc.text):
         terms.append(normalize(term))
+    #   for term in tokenize(doc.title):
+    #       terms.append(normalize(term))
     return terms
 
 
 def grab_terms_from_all_documents(Documents: List[Document]) -> None | List[str]:
-    global index
+    global index, terms_dict
     index = {}
+    terms_dict = {}
 
-    with open(f"debug/docs_terms_debug.txt", "w") as f:
+    debug_path = Path("debug/docs_terms_debug.txt")
+    debug_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with debug_path.open("w", encoding="utf-8") as f:
         for doc in Documents:
             doc_terms = grab_terms(doc)
 
@@ -172,13 +203,34 @@ def grab_terms_from_all_documents(Documents: List[Document]) -> None | List[str]
                 f"Terms: {sorted(doc_terms)}\n\n"
             )
 
+            position_pointer = 0
+
             # count terms in global index
             for term in doc_terms:
+                position_pointer += 1
+                # check if term_obj already exists
+                term_obj = terms_dict.get(term)
+                if term_obj is None:
+                    term_obj = Term(term)
+                else:
+                    pass
+                if term == "grammatical":
+                    print(
+                        f"Found 'grammatical' in Document ID {doc.document_id} at position {position_pointer}"
+                    )
                 if term in index:
                     index[term] += 1
+                    term_obj.add_occurrence(doc.document_id, position_pointer)
                 else:
                     index[term] = 1
+                    term_obj.add_occurrence(doc.document_id, position_pointer)
+                terms_dict[term] = term_obj
     return list(index.keys())
+
+
+def grab_postings_list(term: Term) -> List[int]:
+    postings = term.grab_postings()
+    return [doc_id for doc_id, tf in postings.inorder()]
 
 
 def indexer(terms: List[str], docs: List[Document]) -> dict[str, int]:
@@ -213,7 +265,12 @@ def read_cli() -> argparse.Namespace:
 
 
 def main():
+    global index, terms_dict
+
     args = read_cli()
+
+    # make sure output directory exists
+    args.output.parent.mkdir(parents=True, exist_ok=True)
 
     docs = read_documents(args.input)
 
@@ -234,6 +291,16 @@ def main():
     text_output_path = args.output.parent / "all_text.txt"
     all_text = "\n".join(doc.text for doc in docs)
     write_text(text_output_path, all_text)
+
+    # print postings list for a specific term
+    specific_term = terms_dict.get("grammatical")
+    if specific_term is None:
+        print("Term 'grammatical' not found in terms dictionary.")
+        return
+    postings_list = grab_postings_list(specific_term)
+    print(f"Postings list for term '{specific_term}': {postings_list}")
+    postings_output_path = args.output.parent / f"postings_grammatical.txt"
+    write_postings_list(postings_output_path, specific_term, postings_list)
 
 
 if __name__ == "__main__":
