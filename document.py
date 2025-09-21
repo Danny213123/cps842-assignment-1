@@ -1,6 +1,3 @@
-from cgitb import text
-
-
 class Document:
     def __init__(self, document_id, title, text, publication_date, authors, n, x):
         self.document_id = document_id

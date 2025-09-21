@@ -174,8 +174,6 @@ def grab_terms_from_all_documents(Documents: List[Document]) -> None | List[str]
 
             # count terms in global index
             for term in doc_terms:
-                if term == "grammatical":
-                    print(f"Found 'grammatical' in Document ID {doc.document_id}")
                 if term in index:
                     index[term] += 1
                 else:
