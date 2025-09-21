@@ -1,10 +1,13 @@
 import argparse
+import gzip
 import sys
+import pickle
 from pathlib import Path
 from typing import List, Optional
 
 import nltk
 from nltk.tokenize import word_tokenize
+from nltk.stem import PorterStemmer
 
 from document import Document
 from term import Term
@@ -143,16 +146,37 @@ def write_index(file_path: Path, index: dict[str, int]) -> None:
         for term, count in index.items():
             f.write(f"{term}: {count}\n")
 
+def pickle_index(path: Path) -> None:
+    global index
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(path, "wb") as f:
+        pickle.dump(index, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-def write_postings_list(file_path: Path, term: str, postings_list: List[int]) -> None:
 
+def write_postings_list(file_path: Path) -> None:
+    global terms_dict
     # make sure directory exists
     file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(f"Postings list for term '{term}':\n")
-        for doc_id in postings_list:
-            f.write(f"{doc_id}\n")
+    # write postings for each term in the same file
+    with file_path.open("w", encoding="utf-8") as f:
+        for term, term_obj in terms_dict.items():
+            postings_list = grab_postings_list(term_obj)
+            f.write(f"{term_obj}\n")
+
+
+def pickle_postings_list(path) -> None:
+    global terms_dict
+
+    snapshot = {}
+    for term, term_obj in terms_dict.items():
+        # requires the inorder_with_positions() helper we added earlier
+        plist = term_obj.postings.inorder_with_positions()
+        snapshot[term] = {"freq": term_obj.frequency, "postings": plist}
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(path, "wb") as f:
+        pickle.dump(snapshot, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def tokenize(text: str) -> List[str]:
@@ -184,10 +208,17 @@ def grab_terms(doc: Document) -> dict[str, List[str]]:
     return terms
 
 
-def grab_terms_from_all_documents(Documents: List[Document]) -> None | List[str]:
+def grab_terms_from_all_documents(Documents: List[Document], stopwords: bool, stopwords_file: Path, stemming: bool) -> None | List[str]:
     global index, terms_dict
     index = {}
     terms_dict = {}
+
+    # check if stopwords removal is enabled and if file exists
+    stopword_set = set()
+    if stopwords and stopwords_file.exists():
+        with stopwords_file.open("r", encoding="utf-8") as f:
+            for line in f:
+                stopword_set.add(normalize(line.strip()))
 
     debug_path = Path("debug/docs_terms_debug.txt")
     debug_path.parent.mkdir(parents=True, exist_ok=True)
@@ -207,6 +238,10 @@ def grab_terms_from_all_documents(Documents: List[Document]) -> None | List[str]
 
             # count terms in global index
             for term in doc_terms:
+                if not term or (stopwords and term in stopword_set):
+                    continue
+                if stemming:
+                    term = PorterStemmer().stem(term)
                 position_pointer += 1
                 # check if term_obj already exists
                 term_obj = terms_dict.get(term)
@@ -254,12 +289,25 @@ def read_cli() -> argparse.Namespace:
         "--output",
         type=Path,
         required=True,
-        help="Path to output file (all Document objects, one per line)",
+        help="Path to output file",
     )
     parser.add_argument(
         "--stopwords",
         action="store_true",
-        help="Remove stopwords (flag only; not applied in this minimal parser)",
+        default=False,
+        help="Remove stopwords",
+    )
+    parser.add_argument(
+        "--stopwords-file",
+        type=Path,
+        default=Path("cacm/common_words"),
+        help="Path to stopwords file",
+    )
+    parser.add_argument(
+        "--stemming",
+        action="store_true",
+        default=False,
+        help="Enable Porter stemming",
     )
     return parser.parse_args()
 
@@ -274,33 +322,32 @@ def main():
 
     docs = read_documents(args.input)
 
-    write_documents(args.output, docs)
-    print(f"\nParsed {len(docs)} documents -> {args.output}")
+#   write_documents(args.output, docs)
+#   print(f"\nParsed {len(docs)} documents -> {args.output}")
 
-    terms = grab_terms_from_all_documents(docs)
-    print(f"Extracted {len(terms)} unique terms.")
+    terms = grab_terms_from_all_documents(docs, args.stopwords, args.stopwords_file, args.stemming)
+#   print(f"Extracted {len(terms)} unique terms.")
 
     index = indexer(terms, docs)
-    print(f"Created index with {len(index)} unique terms.")
+#   print(f"Created index with {len(index)} unique terms.")
     index_output_path = args.output.parent / "index.txt"
     write_index(index_output_path, index)
 
-    terms_output_path = args.output.parent / "terms.txt"
-    write_terms(terms_output_path, sorted(terms))
+#   terms_output_path = args.output.parent / "terms.txt"
+#   write_terms(terms_output_path, sorted(terms))
 
-    text_output_path = args.output.parent / "all_text.txt"
-    all_text = "\n".join(doc.text for doc in docs)
-    write_text(text_output_path, all_text)
+#   text_output_path = args.output.parent / "all_text.txt"
+#   all_text = "\n".join(doc.text for doc in docs)
+#   write_text(text_output_path, all_text)
 
-    # print postings list for a specific term
-    specific_term = terms_dict.get("grammatical")
-    if specific_term is None:
-        print("Term 'grammatical' not found in terms dictionary.")
-        return
-    postings_list = grab_postings_list(specific_term)
-    print(f"Postings list for term '{specific_term}': {postings_list}")
-    postings_output_path = args.output.parent / f"postings_grammatical.txt"
-    write_postings_list(postings_output_path, specific_term, postings_list)
+    # write postings for each term in the same file
+    postings_dir = args.output.parent / "postings.txt"
+    write_postings_list(postings_dir)
+
+    pickle_postings_list(postings_dir.parent / "postings.pkl.gz")
+
+    pickle_index(index_output_path.parent / "index.pkl.gz")
+
 
 
 if __name__ == "__main__":
