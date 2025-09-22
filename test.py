@@ -10,6 +10,7 @@ import argparse
 import gzip
 import pickle
 import sys
+import time
 from pathlib import Path
 
 from postings import PostingsList
@@ -17,6 +18,9 @@ from term import Term
 
 global terms_dict
 terms_dict: dict[str, Term] = {}
+
+global index
+index: dict[str, int] = {}
 
 
 def read_cli() -> argparse.Namespace:
@@ -61,7 +65,23 @@ def load_postings(path: Path) -> dict:
         terms_dict[term] = t
     return terms_dict
 
+def lookup(user_input: str) -> Term | None:
+    global terms_dict
+    global index
 
+    start = time.time()
+
+    if user_input in terms_dict:
+        term_obj = terms_dict[user_input]
+        print(f"Term: {term_obj.__str__()}")
+        end = time.time()
+        elapsed = end - start
+        print(f"Time taken to lookup term '{user_input}': {elapsed:.6f} seconds")
+        return term_obj
+    else:
+        print(f"Term '{user_input}' not found in the index.")
+        return None
+    
 if __name__ == "__main__":
     dict_path, postings_path = read_cli()
     print(f"Dictionary file: {dict_path}")
@@ -72,5 +92,13 @@ if __name__ == "__main__":
 
     for term, term_obj in terms_dict.items():
         print(term_obj)
+
+    while True:
+        user_input = input("Enter a term to look up: ")
+        if user_input == "ZZEND":
+            print("Exiting program.")
+            break
+        elif user_input != None:
+            lookup(user_input)
     # Further processing can be done here, such as loading the dictionary and postings
     # and performing searches or other operations.
