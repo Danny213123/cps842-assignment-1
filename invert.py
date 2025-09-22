@@ -1,18 +1,36 @@
 import argparse
 import gzip
-import sys
 import pickle
+import sys
 from pathlib import Path
 from typing import List, Optional
+from stemming import PorterStemmer
 
 import nltk
+import ssl
+
+## fall back due to certificate error?
+error = 0
+
+try:
+    nltk.download('punkt_tab')
+except:
+    error = 1
+
+#   if error == 1:
+#   try:
+#       _create_unverified_https_context = ssl._create_unverified_context
+#   except AttributeError:
+#       print("ssl not available")
+#   else:
+#       ssl._create_default_https_context = _create_unverified_https_context
+
+    nltk.download()
+
 from nltk.tokenize import word_tokenize
-from nltk.stem import PorterStemmer
 
 from document import Document
 from term import Term
-
-nltk.download("punkt_tab")
 
 global index
 index: dict[str, int]
@@ -146,6 +164,7 @@ def write_index(file_path: Path, index: dict[str, int]) -> None:
         for term, count in index.items():
             f.write(f"{term}: {count}\n")
 
+
 def pickle_index(path: Path) -> None:
     global index
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -208,7 +227,9 @@ def grab_terms(doc: Document) -> dict[str, List[str]]:
     return terms
 
 
-def grab_terms_from_all_documents(Documents: List[Document], stopwords: bool, stopwords_file: Path, stemming: bool) -> None | List[str]:
+def grab_terms_from_all_documents(
+    Documents: List[Document], stopwords: bool, stopwords_file: Path, stemming: bool
+) -> None | List[str]:
     global index, terms_dict
     index = {}
     terms_dict = {}
@@ -241,7 +262,7 @@ def grab_terms_from_all_documents(Documents: List[Document], stopwords: bool, st
                 if not term or (stopwords and term in stopword_set):
                     continue
                 if stemming:
-                    term = PorterStemmer().stem(term)
+                    term = PorterStemmer().stem(term, 0, len(term) - 1)
                 position_pointer += 1
                 # check if term_obj already exists
                 term_obj = terms_dict.get(term)
@@ -322,23 +343,25 @@ def main():
 
     docs = read_documents(args.input)
 
-#   write_documents(args.output, docs)
-#   print(f"\nParsed {len(docs)} documents -> {args.output}")
+    #   write_documents(args.output, docs)
+    #   print(f"\nParsed {len(docs)} documents -> {args.output}")
 
-    terms = grab_terms_from_all_documents(docs, args.stopwords, args.stopwords_file, args.stemming)
-#   print(f"Extracted {len(terms)} unique terms.")
+    terms = grab_terms_from_all_documents(
+        docs, args.stopwords, args.stopwords_file, args.stemming
+    )
+    #   print(f"Extracted {len(terms)} unique terms.")
 
     index = indexer(terms, docs)
-#   print(f"Created index with {len(index)} unique terms.")
+    #   print(f"Created index with {len(index)} unique terms.")
     index_output_path = args.output.parent / "index.txt"
     write_index(index_output_path, index)
 
-#   terms_output_path = args.output.parent / "terms.txt"
-#   write_terms(terms_output_path, sorted(terms))
+    #   terms_output_path = args.output.parent / "terms.txt"
+    #   write_terms(terms_output_path, sorted(terms))
 
-#   text_output_path = args.output.parent / "all_text.txt"
-#   all_text = "\n".join(doc.text for doc in docs)
-#   write_text(text_output_path, all_text)
+    #   text_output_path = args.output.parent / "all_text.txt"
+    #   all_text = "\n".join(doc.text for doc in docs)
+    #   write_text(text_output_path, all_text)
 
     # write postings for each term in the same file
     postings_dir = args.output.parent / "postings.txt"
@@ -347,7 +370,6 @@ def main():
     pickle_postings_list(postings_dir.parent / "postings.pkl.gz")
 
     pickle_index(index_output_path.parent / "index.pkl.gz")
-
 
 
 if __name__ == "__main__":
