@@ -87,18 +87,33 @@ if __name__ == "__main__":
     print(f"Dictionary file: {dict_path}")
     print(f"Postings file: {postings_path}")
 
+    start = time.time()
+
     terms_dict = load_postings(postings_path)
     print(f"Loaded {len(terms_dict)} terms from postings.")
 
     for term, term_obj in terms_dict.items():
         print(term_obj)
 
+    end = time.time()
+    duration = end - start
+
+    print(f"Time taken to lookup term '{duration:.6f}' seconds")
+
+
     while True:
         user_input = input("Enter a term to look up: ")
         if user_input == "ZZEND":
             print("Exiting program.")
             break
-        elif user_input != None:
-            lookup(user_input)
+        elif user_input is not None:
+            user_term = lookup(user_input)
+            user_input = input("Enter a specific document ID to look up the location of this term: ")
+            if user_input is not None and user_term is not None:
+                try:
+                    user_term_posting = user_term.get_occurence(int(user_input))
+                    print(user_term_posting)
+                except TypeError:
+                    print("Invalid Input")
     # Further processing can be done here, such as loading the dictionary and postings
     # and performing searches or other operations.

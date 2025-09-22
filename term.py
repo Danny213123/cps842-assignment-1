@@ -11,6 +11,9 @@ class Term:
         self.frequency += 1
         self.postings.insert(document_id, position)
 
+    def get_occurence(self, document_id):
+        self.postings.__getitem__(document_id)
+
     def grab_frequency(self):
         return self.frequency
 
