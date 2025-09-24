@@ -1,21 +1,93 @@
-Objective: The purpose of assignment 1 is to write programs that take a collection of documents and generate its inverted index.
+# CPS842: Information Retrieval and Web Search
 
-Test collection:
+## Inputs
 
-You will use CACM collection (cacm tar file), which is a standard test collection for IR research. It is a collection of titles and abstracts from a journal - Communications of the ACM (CACM), and includes articles published between 1958 and 1979. There are altogether 3204 documents and 10446 terms. The main file you need to use for this assignment is cacm.all which contains the text of documents. You should keep the information from the following fields: .I (for document ID), .T (for title), .W (for abstract), .B (for publication date), and .A (for author list). The terms are extracted from the title and the abstract.
+First the invert.py program will gather several inputs from the user when executing the program:
+- `--input`: the input file containing the information to be processed.
+- `--output`: the output location for the output information
+- `--stopwords`: boolean input, whether or not to prune stop words
+- `--stopwords_file`: file of common words that will be pruned during the tokenization process
+- `--stemming`: boolean input, whether or not to employ PorterStemming algorithm during the tokenization process
 
-Requirements:
+### File Input
 
-1. You need to write a program invert to do the index construction. The input to the program is the document collection. The output includes two files - a dictionary file and a postings lists file. Each entry in the dictionary should include a term and its document frequency. You should use a proper data structure to build the dictionary (e.g. hashmap or search tree or others). The structure should be easy for random lookup and insertion of new terms. All the terms should be sorted in alphabetical order. Postings list for each term should include postings for all documents the term occurs in (in the order of document ID), and the information saved in a posting includes document ID, term frequency in the document, and positions of all occurrences of the term in the document. There is a one-to-one correspondence between the term in the dictionary file and its postings list in the postings lists file.
+The program assumes that the input file is organized in a particular way, but can handle missing inputs in the file,
 
-2. You should have a component for stop word removal, using the stop word list provided in the CACM collection or a shorter stop word list (stopwords.txt). You should also have a stemming component implemented using Porter's Stemming algorithm or other stemming algorithms. Please make sure these two components can be turned on or off when you run the program.
+```txt
+.I 1
+.T
+Preliminary Report-International Algebraic Language
+.B
+CACM December, 1958
+.A
+Perlis, A. J.
+Samelson,K.
+.N
+CA581203 JB March 22, 1978  8:28 PM
+.X
+100	5	1
+123	5	1
+164	5	1
+...
+```
 
-3. You need to write the second program test to test your inverting program. The inputs to the program are the two files generated from the previous program invert. It then keeps asking user to type in a single term. If the term is in one of the documents in the collection, the program should display the document frequency and all the documents which contain this term, for each document, it should display the document ID, the title, the term frequency, all the positions the term occurs in that document, and a summary of the document highlighting the first occurrence of this term with 10 terms in its context. When user types in the term ZZEND, the program will stop (this requirement is valid only when your program doesn't have a graphical interface). Each time, when user types in a valid term, the program should also output the time from getting the user input to outputting the results. Finally, when the program stops, the average value for above-mentioned time should also be displayed.
+## Invert.py
 
-4. Write a brief report (one or two pages) to describe the algorithms and data structures you have used for the first program. The report should also include instructions on how to run your programs.
+In this program, the inverted index will be created, all of the doucments will be processed, with the text being tokenized and sorted depending on documentID, and term strings
 
-5. You can choose any programming language such as Python, Java, C++, C#, etc.
+### Tokenization
 
-6. You should submit a zipped file (i.e. cps842f25_a1_yourname.zip) to D2L web site, including the report, the source code of all programs, the executable programs (invert and test) and the result from a few sample runs (could be several screenshots). A demonstration is scheduled during the lab hours (or as you schedule with the TA).
+When the user provides the correct arguments and inputs, the program will begin processing the file and create a document object. Information for the document class can be viewed within `document.py`. For each document, the document ID, publication date, text, author(s), and any other information are stored in memory. Once all the document objects are created, the process will begin to tokenize the text of each document. First, the text is split up using nltk's tokenize function and whitespace splitting. In Python, this can be achieved with just a `.split(" ")`. 
 
-Note: You can write more than two programs and generate more files if necessary.
+After the text has been tokenized, it will then be further normalized by removing punctuation and numerical values, and subsequently stripped of white spaces and converted to lowercase. During the tokenization process, an index dictionary will be created through a straightforward key-value creation process. It will check if a key already exists and increment the frequency value; otherwise, it will create a new key with a frequency of 0. 
+
+The term object is also created, with the document ID being searched, the term frequency being incremented for each occurrence of a term within the document ID, and the position of the term within the document being tracked using a simple position pointer.
+
+### PorterStemming
+
+The stemming algorithm employed in this program is the PorterStemming algorithm which employs some fundamental rules for each term. Stemming algorithm relies on heuristics checks for each term, to remove derivational
+affixes
+
+- removal of suffixes and prefixes:
+    - `sses` -> `ss`
+    - `ies` -> `i`
+    - `ss` -> `ss`
+    - `s` -> ``
+
+### Index
+
+The index, which is a `term: str -> document frequency: int` mapping, is a hash map with key-value lookups.
+
+### Postings List
+
+The postings list is a little more sophisticated, with a dictionary file in invert.py that maps `term: str -> Term Object`. Inside the Term Object, the term, total document frequency, and the postings list are stored. The postings list is a binary search tree, with each node containing the document ID in which the term appears, the number of times the term appears in the given document, and the position of the term within the document.
+
+### Result
+
+After the invert program has finally run, the index and terms_dict are pickled and will be used in test.py
+
+## Test.py
+
+The Test program will allow users to enter a simple query input of a term, perform a lookup, check if the term exists, and then output the term and its context. The input to test.py will be the two pickle files outputted in the output/ folder.
+
+The given input files are processed, and the data structures are rebuilt from the pickle file. After this, the program will prompt the user for an input term. Given the input term, it checks if it exists; if so, it continues; otherwise, it repeats the input prompt.
+
+Once the term has been retrieved, the user is then prompted again for input, this time for a document ID that contains the term. Once the user provides the document ID, it will return a context of 10 terms, including five terms before and five terms after the first position of the given term.
+
+When the user types in the term ZZEND, the program will stop.
+
+## Running the Program
+
+```shell
+
+>>>  python invert.py --i cacm/cacm.all --o output/output.txt --stopwords --stemming
+>>>  python test.py -i output/index.pkl.gz output/postings.pkl.gz
+
+```
+
+## Requirements
+
+```shell
+
+>>>  pip install nltk
+```

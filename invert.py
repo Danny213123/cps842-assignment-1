@@ -1,29 +1,31 @@
 import argparse
 import gzip
 import pickle
+import ssl
 import sys
+import time
 from pathlib import Path
 from typing import List, Optional
-from stemming import PorterStemmer
 
 import nltk
-import ssl
+
+from stemming import PorterStemmer
 
 ## fall back due to certificate error?
 error = 0
 
 try:
-    nltk.download('punkt_tab')
+    nltk.download("punkt_tab")
 except:
     error = 1
 
-#   if error == 1:
-#   try:
-#       _create_unverified_https_context = ssl._create_unverified_context
-#   except AttributeError:
-#       print("ssl not available")
-#   else:
-#       ssl._create_default_https_context = _create_unverified_https_context
+    #   if error == 1:
+    #   try:
+    #       _create_unverified_https_context = ssl._create_unverified_context
+    #   except AttributeError:
+    #       print("ssl not available")
+    #   else:
+    #       ssl._create_default_https_context = _create_unverified_https_context
 
     nltk.download()
 
@@ -40,6 +42,11 @@ terms_dict: dict[str, Term] = {}
 
 
 def read_documents(file_path: Path) -> List[Document]:
+    """
+    Read documents from a file in the specified format
+    :param file_path: Path to the input file
+    :return: List of Document objects
+    """
 
     if not file_path.exists():
         print(f"Error: {file_path} does not exist.", file=sys.stderr)
@@ -143,29 +150,61 @@ def read_documents(file_path: Path) -> List[Document]:
 
 
 def write_documents(file_path: Path, documents: List[Document]) -> None:
+    """
+    Write documents to a file
+    :param file_path: Path to the output file
+    :param documents: List of Document objects
+    :return: None
+    """
     with open(file_path, "w", encoding="utf-8") as f:
         for doc in documents:
             f.write(doc.__repr__() + "\n")
 
 
 def write_terms(file_path: Path, terms: List[str]) -> None:
+    """
+    Write terms to a file
+    :param file_path: Path to the output file
+    :param terms: List of terms to write
+    :return: None
+    """
+    file_path.parent.mkdir(parents=True, exist_ok=True)
     with open(file_path, "w", encoding="utf-8") as f:
         for term in terms:
             f.write(term + "\n")
 
 
 def write_text(file_path: Path, text: str) -> None:
+    """
+    Write text to a file
+    :param file_path: Path to the output file
+    :param text: Text to write
+    :return: None
+    """
+    file_path.parent.mkdir(parents=True, exist_ok=True)
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(text)
 
 
 def write_index(file_path: Path, index: dict[str, int]) -> None:
+    """
+    Write the index dictionary to a file
+    :param file_path: Path to the output file
+    :param index: Index dictionary
+    :return: None
+    """
+    file_path.parent.mkdir(parents=True, exist_ok=True)
     with open(file_path, "w", encoding="utf-8") as f:
         for term, count in index.items():
             f.write(f"{term}: {count}\n")
 
 
 def pickle_index(path: Path) -> None:
+    """
+    Pickle the index dictionary
+    :param path: Path to the gzip file
+    :return: None
+    """
     global index
     path.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(path, "wb") as f:
@@ -173,6 +212,11 @@ def pickle_index(path: Path) -> None:
 
 
 def write_postings_list(file_path: Path) -> None:
+    """
+    Write the postings list for all terms to a file
+    :param file_path: Path to the output file
+    :return: None
+    """
     global terms_dict
     # make sure directory exists
     file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -185,6 +229,10 @@ def write_postings_list(file_path: Path) -> None:
 
 
 def pickle_postings_list(path) -> None:
+    """
+    Pickle the postings list for all terms
+    :param path: Path to the gzip file
+    :return: None"""
     global terms_dict
 
     snapshot = {}
@@ -199,10 +247,19 @@ def pickle_postings_list(path) -> None:
 
 
 def tokenize(text: str) -> List[str]:
+    """Tokenize text using nltk's word_tokenize
+    :param text: Input text
+    :return: List of tokens
+    """
     return word_tokenize(text)
 
 
 def normalize(text: str) -> str:
+    """
+    Normalize text by removing punctuation and digits.
+    :param text: Input text
+    :return: Normalized text
+    """
     # Remove punctuation
     text = "".join(char for char in text if char.isalnum() or char.isspace())
 
@@ -218,6 +275,11 @@ def normalize(text: str) -> str:
 
 
 def grab_terms(doc: Document) -> dict[str, List[str]]:
+    """
+    Grab terms from a specific document
+    :param doc: Document object
+    :return: List of terms
+    """
     # grab terms from a specific document
     terms = []
     for term in tokenize(doc.text):
@@ -230,6 +292,14 @@ def grab_terms(doc: Document) -> dict[str, List[str]]:
 def grab_terms_from_all_documents(
     Documents: List[Document], stopwords: bool, stopwords_file: Path, stemming: bool
 ) -> None | List[str]:
+    """
+    Grab terms from all documents
+    :param Documents: List of Document objects
+    :param stopwords: Whether to remove stopwords
+    :param stopwords_file: Path to stopwords file
+    :param stemming: Whether to apply Porter stemming
+    :return: List of unique terms
+    """
     global index, terms_dict
     index = {}
     terms_dict = {}
@@ -270,10 +340,6 @@ def grab_terms_from_all_documents(
                     term_obj = Term(term)
                 else:
                     pass
-                if term == "grammatical":
-                    print(
-                        f"Found 'grammatical' in Document ID {doc.document_id} at position {position_pointer}"
-                    )
                 if term in index:
                     index[term] += 1
                     term_obj.add_occurrence(doc.document_id, position_pointer)
@@ -285,29 +351,41 @@ def grab_terms_from_all_documents(
 
 
 def grab_postings_list(term: Term) -> List[int]:
+    """
+    Grab postings list for a specific term
+    :param term: Term object
+    :return: List of document IDs where the term appears
+    """
     postings = term.grab_postings()
     return [doc_id for doc_id, tf in postings.inorder()]
 
 
-def indexer(terms: List[str], docs: List[Document]) -> dict[str, int]:
+def indexer() -> dict[str, int]:
+    """
+    return index
+    """
     global index
-
     return index
 
 
 def read_cli() -> argparse.Namespace:
+    """
+    Read command line arguments
+    """
     parser = argparse.ArgumentParser(
         prog="cli",
         description="CPS842: Information Retrieval and Web Search - Assignment 1",
     )
     parser.add_argument(
         "--input",
+        "-i",
         type=Path,
         required=True,
         help="Path to cacm.all file",
     )
     parser.add_argument(
         "--output",
+        "-o",
         type=Path,
         required=True,
         help="Path to output file",
@@ -334,7 +412,19 @@ def read_cli() -> argparse.Namespace:
 
 
 def main():
+    """
+    You need to write a program invert to do the index construction. The input to the program is the document collection.
+    The output includes two files - a dictionary file and a postings lists file. Each entry in the dictionary should include
+    a term and its document frequency. You should use a proper data structure to build the dictionary (e.g. hashmap or search
+    tree or others). The structure should be easy for random lookup and insertion of new terms. All the terms should be sorted
+    in alphabetical order. Postings list for each term should include postings for all documents the term occurs in (in the
+    order of document ID), and the information saved in a posting includes document ID, term frequency in the document, and
+    positions of all occurrences of the term in the document. There is a one-to-one correspondence between the term in the
+    dictionary file and its postings list in the postings lists file.
+    """
     global index, terms_dict
+
+    start = time.time()
 
     args = read_cli()
 
@@ -349,9 +439,10 @@ def main():
     terms = grab_terms_from_all_documents(
         docs, args.stopwords, args.stopwords_file, args.stemming
     )
-    #   print(f"Extracted {len(terms)} unique terms.")
+    print(f"Extracted {len(terms)} unique terms.")
+    print(f"Extracted {len(docs)} documents.")
 
-    index = indexer(terms, docs)
+    index = indexer()
     #   print(f"Created index with {len(index)} unique terms.")
     index_output_path = args.output.parent / "index.txt"
     write_index(index_output_path, index)
@@ -370,6 +461,9 @@ def main():
     pickle_postings_list(postings_dir.parent / "postings.pkl.gz")
 
     pickle_index(index_output_path.parent / "index.pkl.gz")
+
+    duration = time.time() - start
+    print(f"Indexing completed in {duration:.6f} seconds.")
 
 
 if __name__ == "__main__":

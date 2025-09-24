@@ -7,8 +7,11 @@ class Node:
         self.positions = []  # position pointer within the text
 
 
-class PostingsBST:
+class PostingsList:
+    """Binary Search Tree for Postings List"""
+
     def __init__(self):
+        """Initialize the root and size."""
         self.root = None
         self.size = 0
 
@@ -48,9 +51,12 @@ class PostingsBST:
                 cur = cur.right
 
     def inorder(self):
+        """Inorder traversal of the BST, left-root-right."""
         result = []
         stack = []
         cur = self.root
+
+        # while there are nodes to process
         while stack or cur:
             while cur:
                 stack.append(cur)
@@ -61,6 +67,7 @@ class PostingsBST:
         return result
 
     def inorder_with_positions(self):
+        """inorder but with positions, vertix model to inverted index"""
         result = []
         stack = []
         cur = self.root
@@ -69,12 +76,12 @@ class PostingsBST:
                 stack.append(cur)
                 cur = cur.left
             cur = stack.pop()
-            # copy positions so callers can't mutate internal state accidentally
             result.append((cur.document_id, cur.tf, list(cur.positions)))
             cur = cur.right
         return result
 
     def __contains__(self, document_id):
+        """Check if a term shows up in a certain document"""
         cur = self.root
         while cur:
             if document_id == cur.document_id:
@@ -83,14 +90,16 @@ class PostingsBST:
         return False
 
     def __getitem__(self, document_id):
+        """Get the postings for a specific document"""
         cur = self.root
         while cur:
             if document_id == cur.document_id:
-                return cur.tf
+                return cur
             cur = cur.left if document_id < cur.document_id else cur.right
         raise KeyError(f"Document ID {document_id} not found in postings list.")
 
     def grab_positions(self, document_id):
+        """grab positions for a specific document"""
         cur = self.root
         while cur:
             if document_id == cur.document_id:
@@ -100,29 +109,3 @@ class PostingsBST:
 
     def __len__(self):
         return self.size
-
-
-class PostingsList:
-    def __init__(self):
-        self.bst = PostingsBST()
-
-    def insert(self, document_id, position=None):
-        self.bst.insert(document_id, position)
-
-    def inorder(self):
-        return self.bst.inorder()
-
-    def inorder_with_positions(self):
-        return self.bst.inorder_with_positions()
-
-    def __contains__(self, document_id):
-        return document_id in self.bst
-
-    def __getitem__(self, document_id):
-        return self.bst[document_id]
-
-    def grab_positions(self, document_id):
-        return self.bst.grab_positions(document_id)
-
-    def __len__(self):
-        return len(self.bst)
