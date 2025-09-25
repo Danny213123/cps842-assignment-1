@@ -6,7 +6,7 @@ First the invert.py program will gather several inputs from the user when execut
 - `--input`: the input file containing the information to be processed.
 - `--output`: the output location for the output information
 - `--stopwords`: boolean input, whether or not to prune stop words
-- `--stopwords_file`: file of common words that will be pruned during the tokenization process
+- `--stopwords-file`: file of common words that will be pruned during the tokenization process
 - `--stemming`: boolean input, whether or not to employ PorterStemming algorithm during the tokenization process
 
 ### File Input

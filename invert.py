@@ -264,7 +264,7 @@ def normalize(text: str) -> str:
     text = "".join(char for char in text if char.isalnum() or char.isspace())
 
     # only keep non-numeric characters
-    text = "".join(char for char in text if not char.isdigit())
+    # text = "".join(char for char in text if not char.isdigit())
 
     # check for empty string
     if not text.strip():
@@ -300,8 +300,7 @@ def grab_terms_from_all_documents(
     :param stemming: Whether to apply Porter stemming
     :return: List of unique terms
     """
-    global index, terms_dict
-    index = {}
+    global terms_dict
     terms_dict = {}
 
     # check if stopwords removal is enabled and if file exists
@@ -340,14 +339,12 @@ def grab_terms_from_all_documents(
                     term_obj = Term(term)
                 else:
                     pass
-                if term in index:
-                    index[term] += 1
+                if term in terms_dict:
                     term_obj.add_occurrence(doc.document_id, position_pointer)
                 else:
-                    index[term] = 1
                     term_obj.add_occurrence(doc.document_id, position_pointer)
                 terms_dict[term] = term_obj
-    return list(index.keys())
+    return list(terms_dict.keys())
 
 
 def grab_postings_list(term: Term) -> List[int]:
@@ -365,6 +362,9 @@ def indexer() -> dict[str, int]:
     return index
     """
     global index
+    index = {}
+    for term in sorted(terms_dict.keys()):
+        index[term] = terms_dict[term].postings.size
     return index
 
 
