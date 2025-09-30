@@ -149,6 +149,57 @@ def get_common_occurrences(
 
     return common_terms
 
+def get_summary(document_id: int, positions: list[int], n: int) -> str:
+    """
+    Generate a summary of the document highlighting the first occurrence of the term with n terms in its context
+
+    :param document_id: Document ID to look up
+    :param positions: List of positions where the term occurs in the document
+    :param n: Number of terms to include in the context
+    :return: Summary string
+    """
+    global terms_dict
+
+    # find all terms that have the same document ID
+    all_terms = []
+    for term, term_obj in terms_dict.items():
+        node_document = (
+            term_obj.postings.__getitem__(document_id)
+            if document_id in term_obj.postings
+            else None
+        )
+        if node_document:
+            all_terms.append((term, node_document.positions))
+
+    # flatten list of positions and sort by position
+    flattened_positions = []
+    for term, pos_list in all_terms:
+        for pos in pos_list:
+            flattened_positions.append((term, pos))
+    flattened_positions.sort(key=lambda x: x[1])
+
+    # find the index of the first occurrence of the term
+    first_occurrence_index = next(
+        (i for i, (_, pos) in enumerate(flattened_positions) if pos == positions[0]),
+        None,
+    )
+
+    if first_occurrence_index is None:
+        print(f"No occurrences found for document ID {document_id}.")
+        return ""
+
+    # start position is the maximum between 0 and the first occurrence - n, which ensures no out of bounds issue
+    # end position is the minimum between the length and current position + n, for the same reason
+    start_pos = max(0, first_occurrence_index - n)
+    end_pos = min(first_occurrence_index + n + 1, len(flattened_positions))
+
+    summary_terms = [
+        term for term, _ in flattened_positions[start_pos:end_pos]
+    ]
+    summary = " ".join(summary_terms)
+    print(f"Summary for document {document_id}: {summary}")
+    return summary
+
 
 def main():
     """
@@ -219,10 +270,16 @@ def main():
                                 print(
                                     f"Document ID '{user_input}' not found for term '{user_input}'."
                                 )
+                                continue
                             else:
                                 print(user_term_posting)
                                 get_common_occurrences(
                                     int(user_input), user_term_posting["positions"], 5
+                                )
+                                get_summary(
+                                    int(user_input),
+                                    user_term_posting["positions"],
+                                    5,
                                 )
                             retrieve_end = time.time()
                             retrieve_duration = retrieve_end - retrieve_start

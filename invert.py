@@ -284,8 +284,8 @@ def grab_terms(doc: Document) -> dict[str, List[str]]:
     terms = []
     for term in tokenize(doc.text):
         terms.append(normalize(term))
-    #   for term in tokenize(doc.title):
-    #       terms.append(normalize(term))
+    for term in tokenize(doc.title):
+        terms.append(normalize(term))
     return terms
 
 
