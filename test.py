@@ -128,15 +128,9 @@ def get_common_occurrences(
         if node_document:
             common_terms.append(term)
 
-    # sort terms by position in the document
-    common_terms = sorted(
-        common_terms,
-        key=lambda term: (
-            terms_dict[term].postings.grab_positions(document_id)[0]
-            if terms_dict[term].postings.grab_positions(document_id)
-            else float("inf")
-        ),
-    )
+    # document terms
+    common_terms.sort()
+    print(f"All terms in document {document_id}: {common_terms}")
 
     # start position is the maximum between 0 and the first position - n, which ensures no out of bounds issue
     # end position is the minimum between the length and current position + n,
@@ -144,8 +138,11 @@ def get_common_occurrences(
     print(f"Common terms in document {document_id}: {common_terms}")
     start_pos = max(0, positions[0] - n)
     end_pos = min(positions[0] + n, len(common_terms))
+    print(f"{start_pos} | {positions[0]} | {end_pos}")
     for term in common_terms[start_pos:end_pos]:
         print(f"Term: {term.__str__()}")
+
+    common_terms = common_terms[start_pos:end_pos]
 
     return common_terms
 
@@ -196,6 +193,9 @@ def get_summary(document_id: int, positions: list[int], n: int) -> str:
     summary_terms = [
         term for term, _ in flattened_positions[start_pos:end_pos]
     ]
+
+    for term in summary_terms:
+        print(f"Term: {term}")
     summary = " ".join(summary_terms)
     print(f"Summary for document {document_id}: {summary}")
     return summary
@@ -273,9 +273,9 @@ def main():
                                 continue
                             else:
                                 print(user_term_posting)
-                                get_common_occurrences(
-                                    int(user_input), user_term_posting["positions"], 5
-                                )
+                                #   get_common_occurrences(
+                                #       int(user_input), user_term_posting["positions"], 5
+                                #   )
                                 get_summary(
                                     int(user_input),
                                     user_term_posting["positions"],
