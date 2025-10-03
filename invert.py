@@ -40,6 +40,9 @@ index: dict[str, int]
 global terms_dict
 terms_dict: dict[str, Term] = {}
 
+global document_dict
+document_dict: dict[int, Document] = {}
+
 
 def read_documents(file_path: Path) -> List[Document]:
     """
@@ -68,6 +71,8 @@ def read_documents(file_path: Path) -> List[Document]:
     documents: List[Document] = []
 
     def flush_current():
+        global document_dict
+
         nonlocal document_id, title_parts, text_parts, date_parts, authors, n_parts, x_parts
         if document_id is None:
             return
@@ -81,6 +86,8 @@ def read_documents(file_path: Path) -> List[Document]:
             x_parts[:],
         )
         documents.append(doc)
+
+        document_dict[document_id] = doc
 
         # reset
         document_id = None
@@ -246,6 +253,18 @@ def pickle_postings_list(path) -> None:
         pickle.dump(snapshot, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
+def pickle_documents(path: Path) -> None:
+    """
+    Pickle the documents dictionary
+    :param path: Path to the gzip file
+    :return: None
+    """
+    global document_dict
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(path, "wb") as f:
+        pickle.dump(document_dict, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+
 def tokenize(text: str) -> List[str]:
     """Tokenize text using nltk's word_tokenize
     :param text: Input text
@@ -324,15 +343,37 @@ def grab_terms_from_all_documents(
                 f"Terms: {sorted(doc_terms)}\n\n"
             )
 
+            document_text_pointer = 0
             position_pointer = 0
 
             # count terms in global index
             for term in doc_terms:
+                if stopwords:
+                    if term in stopword_set:
+                        document_text_pointer = doc.text.find(term, document_text_pointer)
+                        if document_text_pointer == -1:
+                            break
+                        document_text_pointer += len(term)
+                        position_pointer += 1
+                        continue
+                if not term:
+                    document_text_pointer = doc.text.find(term, document_text_pointer)
+                    if document_text_pointer == -1:
+                        break
+                    document_text_pointer += len(term)
+                    position_pointer += 1
+                    continue
+                if stemming:
+                    term = PorterStemmer().stem(term, 0, len(term) - 1)
+                document_text_pointer = doc.text.find(term, document_text_pointer)
+                if document_text_pointer == -1:
+                    break
+                document_text_pointer += len(term)
+                position_pointer += 1
                 if not term or (stopwords and term in stopword_set):
                     continue
                 if stemming:
                     term = PorterStemmer().stem(term, 0, len(term) - 1)
-                position_pointer += 1
                 # check if term_obj already exists
                 term_obj = terms_dict.get(term)
                 if term_obj is None:
@@ -461,6 +502,8 @@ def main():
     pickle_postings_list(postings_dir.parent / "postings.pkl.gz")
 
     pickle_index(index_output_path.parent / "index.pkl.gz")
+
+    pickle_documents(index_output_path.parent / "documents.pkl.gz")
 
     duration = time.time() - start
     print(f"Indexing completed in {duration:.6f} seconds.")
