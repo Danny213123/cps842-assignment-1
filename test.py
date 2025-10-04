@@ -84,15 +84,15 @@ def load_postings(path: Path) -> dict:
 
     terms_dict = {}
     for term, payload in snapshot.items():
-        t = Term(term, frequency=0)
+        term = Term(term, frequency=0)
         for doc_id, tf, positions in payload["postings"]:
             if positions:
-                for p in positions:
-                    t.add_occurrence(doc_id, p)
+                for pos in positions:
+                    term.add_occurrence(doc_id, pos)
             else:
                 for _ in range(tf):
-                    t.add_occurrence(doc_id, None)
-        terms_dict[term] = t
+                    term.add_occurrence(doc_id, None)
+        terms_dict[term.term] = term
     return terms_dict
 
 
@@ -113,7 +113,7 @@ def lookup(user_input: str) -> Term | None:
         print(f"Term: {term_obj.__str__()}")
         end = time.time()
         duration = end - start
-        print(f"Time taken to lookup term '{user_input}': {duration:.6f} seconds")
+        #   print(f"Time taken to lookup term '{user_input}': {duration:.6f} seconds")
         return term_obj
     else:
         print(f"Term '{user_input}' not found in the index.")
@@ -166,36 +166,79 @@ def get_common_occurrences(
 
 def get_summary(document_id: int, term: Term, n: int) -> str:
     """
-    Generate a summary of the document highlighting the first occurrence of the term with n terms in its context
+    Generate a summary of the document highlighting the first occurrence of the term with n words in its context
 
     :param document_id: Document ID to look up
-    :param positions: List of positions where the term occurs in the document
-    :param n: Number of terms to include in the context
+    :param term: Term object containing positions
+    :param n: Number of words to include before and after (total context is 2n+1)
     :return: Summary string
     """
     global terms_dict
     global document_dict
 
-    print(terms_dict[term])
+    if document_id not in document_dict:
+        print(f"Document ID '{document_id}' not found in document dictionary.")
+        return ""
 
-    position = term.positions[0] if term.positions else 0
-    start_pos = max(0, position - n)
-    end_pos = min(position + n, len(terms_dict))
+    doc = document_dict[document_id]
 
-    if document_id in document_dict:
-        print(f"{start_pos} | {position} | {end_pos}")
+    if document_id not in term.postings:
+        print(f"Term '{term.term}' not found in document {document_id}.")
+        return ""
 
-        doc = document_dict[document_id]
-        doc_text = doc.text.split()
-        print(f"Document text: {doc_text}")
-        summary = " ".join(doc_text[start_pos:end_pos])
-        print(f"{start_pos} | {position} | {end_pos} | {doc_text[start_pos]} | {doc_text[position]} | {doc_text[end_pos]}")
-        print(f"Summary for document {document_id}: {summary}")
-        return summary
-    
-    print(f"Document ID '{document_id}' not found in document dictionary.")
+    full_text = f"{doc.text}"
+    words = full_text.split()
 
-    return ""
+    term_position = -1
+    search_term = term.term.lower()
+
+    # current position is the first occurrence of the term in the document
+    for index, word in enumerate(words):
+        normalized_word = "".join(char for char in word.lower() if char.isalnum())
+
+        # Check if this word matches the term directly
+        if normalized_word == search_term:
+            term_position = index
+            break
+
+        stemmed_word = PorterStemmer().stem(
+            normalized_word, 0, len(normalized_word) - 1
+        )
+        if stemmed_word == search_term:
+            term_position = index
+            break
+
+    if term_position == -1:
+        print(
+            f"Term '{term.term}' not found in document text for document {document_id}."
+        )
+        return ""
+
+    # start position is the maximum between 0 and the first position - n, which ensures no out of bounds issue
+    # end position is the minimum between the length and current position + n,
+    # for the same reason
+    start_pos = max(0, term_position - n)
+    end_pos = min(len(words), term_position + n)
+
+    print(f"\nDocument ID: {document_id}")
+    print(f"Term: '{term.term}' at position {term_position}")
+    print(
+        f"Context window: [{start_pos}:{end_pos}] (showing {end_pos - start_pos} words)"
+    )
+
+    context_words = words[start_pos:end_pos]
+
+    highlighted_words = []
+    for index, word in enumerate(context_words):
+        if start_pos + index == term_position:
+            highlighted_words.append(f"**{word}**")
+        else:
+            highlighted_words.append(word)
+
+    summary = " ".join(highlighted_words)
+    print(f"\nSummary: {summary}\n")
+
+    return summary
 
 
 def main():
@@ -239,28 +282,38 @@ def main():
 
     print(f"Time taken to load dictionary: '{duration:.6f}' seconds")
 
+    total_attempts = 0
+    total_time = 0.0
+
     while True:
         user_input = input("Enter a term to look up: ")
 
         # exit condition
         if user_input == "ZZEND":
-            print("Exiting program.")
+            print(f"Exiting program. Total attempts: {total_attempts}, Total time: {total_time:.6f} seconds, Average time: {(total_time / total_attempts) if total_attempts > 0 else 0:.6f} seconds")
             break
 
         # if user input is not empty, look up term
         elif user_input is not None:
             stemmed_input = PorterStemmer().stem(user_input, 0, len(user_input) - 1)
+            lookup_start = time.time()
             user_term = lookup(stemmed_input)
             if user_term is None:
                 user_term = lookup(user_input.lower())
             try:
                 if user_term is not None:
+                    lookup_end = time.time()
+                    lookup_duration = lookup_end - lookup_start
+                    print(
+                        f"Time taken to lookup term '{user_input}': {lookup_duration:.6f} seconds"
+                    )
+                    total_time += lookup_duration
                     user_input = input(
                         "Enter a specific document ID to look up the location of this term: "
                     )
                     if user_input is not None and user_term is not None:
+                        total_attempts += 1
                         try:
-                            retrieve_start = time.time()
                             try:
                                 user_term_posting = user_term.get_occurrence(
                                     int(user_input)
@@ -275,6 +328,7 @@ def main():
                                 )
                                 continue
                             else:
+                                retrieve_start = time.time()
                                 print(user_term_posting)
                                 #   get_common_occurrences(
                                 #       int(user_input), user_term_posting["positions"], 5
@@ -282,13 +336,13 @@ def main():
                                 get_summary(
                                     int(user_input),
                                     user_term,
-                                    5,
+                                    10,
                                 )
-                            retrieve_end = time.time()
-                            retrieve_duration = retrieve_end - retrieve_start
-                            print(
-                                f"Time taken to retrieve postings for document ID '{user_input}': {retrieve_duration:.6f} seconds"
-                            )
+                                retrieve_end = time.time()
+                                retrieve_duration = retrieve_end - retrieve_start
+                                print(
+                                    f"Time taken to retrieve postings for document ID '{user_input}': {retrieve_duration:.6f} seconds"
+                                )
                         except TypeError:
                             print("Invalid Input")
             except EOFError:

@@ -1,5 +1,9 @@
 # CPS842: Information Retrieval and Web Search
 
+## NOTES
+
+After the lab demo, I have applied normalization to the queries, the same that are applied to the terms, I have also added in an additional check if the term being looked up was stemmed using the PorterStemming algorithm.
+
 ## Inputs
 
 First the invert.py program will gather several inputs from the user when executing the program:
@@ -37,7 +41,7 @@ In this program, the inverted index will be created, all of the doucments will b
 
 ### Tokenization
 
-When the user provides the correct arguments and inputs, the program will begin processing the file and create a document object. Information for the document class can be viewed within `document.py`. For each document, the document ID, publication date, text, author(s), and any other information are stored in memory. Once all the document objects are created, the process will begin to tokenize the text of each document. First, the text is split up using nltk's tokenize function and whitespace splitting. In Python, this can be achieved with just a `.split(" ")`. 
+When the user provides the correct arguments and inputs, the program will begin processing the file and create a document object. Information for the document class can be viewed within `document.py`. For each document, the document ID, publication date, text, author(s), and any other information are stored in memory. Once all the document objects are created, the process will begin to tokenize the text of each document. First, the text is split up using nltk's tokenize function and whitespace splitting, in Python, this can be achieved with just a `.split(" ")` and split on punctuation. 
 
 After the text has been tokenized, it will then be further normalized by removing punctuation and numerical values, and subsequently stripped of white spaces and converted to lowercase. During the tokenization process, an index dictionary will be created through a straightforward key-value creation process. It will check if a key already exists and increment the frequency value; otherwise, it will create a new key with a frequency of 0. 
 
@@ -76,11 +80,13 @@ Once the term has been retrieved, the user is then prompted again for input, thi
 
 When the user types in the term ZZEND, the program will stop.
 
+There are screenshots within the .zip file with a few sample runs
+
 ## Running the Program
 
 ```shell
 
->>>  python invert.py --i cacm/cacm.all --o output/output.txt --stopwords --stemming
+>>>  python invert.py --i cacm/cacm.all --o output/output.txt --stopwords --stemming --stopwords-file stopwords.txt
 >>>  python test.py -i output/index.pkl.gz output/postings.pkl.gz
 
 ```

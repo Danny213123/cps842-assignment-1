@@ -9,29 +9,11 @@ from typing import List, Optional
 
 import nltk
 
-from stemming import PorterStemmer
-
-## fall back due to certificate error?
-error = 0
-
-try:
-    nltk.download("punkt_tab")
-except:
-    error = 1
-
-    #   if error == 1:
-    #   try:
-    #       _create_unverified_https_context = ssl._create_unverified_context
-    #   except AttributeError:
-    #       print("ssl not available")
-    #   else:
-    #       ssl._create_default_https_context = _create_unverified_https_context
-
-    nltk.download()
-
+nltk.download("punkt")
 from nltk.tokenize import word_tokenize
 
 from document import Document
+from stemming import PorterStemmer
 from term import Term
 
 global index
@@ -270,7 +252,32 @@ def tokenize(text: str) -> List[str]:
     :param text: Input text
     :return: List of tokens
     """
-    return word_tokenize(text)
+    try:
+        return word_tokenize(text)
+    except Exception as e:
+        punctuation = ".,!?;:'\"()-[]{}/"
+
+        result = []
+        current_word = ""
+
+        for char in text:
+            if char in punctuation:
+                if current_word:
+                    result.append(current_word)
+                    current_word = ""
+                result.append(char)
+            elif char.isspace():
+                if current_word:
+                    result.append(current_word)
+                    current_word = ""
+            else:
+                current_word += char
+
+        # Add last word if exists
+        if current_word:
+            result.append(current_word)
+
+        return result
 
 
 def normalize(text: str) -> str:
@@ -303,8 +310,8 @@ def grab_terms(doc: Document) -> dict[str, List[str]]:
     terms = []
     for term in tokenize(doc.text):
         terms.append(normalize(term))
-    for term in tokenize(doc.title):
-        terms.append(normalize(term))
+    #   for term in tokenize(doc.title):
+    #       terms.append(normalize(term))
     return terms
 
 
@@ -343,48 +350,36 @@ def grab_terms_from_all_documents(
                 f"Terms: {sorted(doc_terms)}\n\n"
             )
 
-            document_text_pointer = 0
             position_pointer = 0
 
             # count terms in global index
             for term in doc_terms:
-                if stopwords:
-                    if term in stopword_set:
-                        document_text_pointer = doc.text.find(term, document_text_pointer)
-                        if document_text_pointer == -1:
-                            break
-                        document_text_pointer += len(term)
-                        position_pointer += 1
-                        continue
+                # Skip empty terms
                 if not term:
-                    document_text_pointer = doc.text.find(term, document_text_pointer)
-                    if document_text_pointer == -1:
-                        break
-                    document_text_pointer += len(term)
                     position_pointer += 1
                     continue
-                if stemming:
-                    term = PorterStemmer().stem(term, 0, len(term) - 1)
-                document_text_pointer = doc.text.find(term, document_text_pointer)
-                if document_text_pointer == -1:
-                    break
-                document_text_pointer += len(term)
-                position_pointer += 1
-                if not term or (stopwords and term in stopword_set):
+
+                # Skip stopwords but still increment position
+                if stopwords and term in stopword_set:
+                    position_pointer += 1
                     continue
+
+                # Apply stemming if enabled
+                processed_term = term
                 if stemming:
-                    term = PorterStemmer().stem(term, 0, len(term) - 1)
-                # check if term_obj already exists
-                term_obj = terms_dict.get(term)
+                    processed_term = PorterStemmer().stem(term, 0, len(term) - 1)
+
+                # Get or create term object
+                term_obj = terms_dict.get(processed_term)
                 if term_obj is None:
-                    term_obj = Term(term)
-                else:
-                    pass
-                if term in terms_dict:
-                    term_obj.add_occurrence(doc.document_id, position_pointer)
-                else:
-                    term_obj.add_occurrence(doc.document_id, position_pointer)
-                terms_dict[term] = term_obj
+                    term_obj = Term(processed_term)
+                    terms_dict[processed_term] = term_obj
+
+                # Add occurrence with current position
+                term_obj.add_occurrence(doc.document_id, position_pointer)
+
+                position_pointer += 1
+
     return list(terms_dict.keys())
 
 
